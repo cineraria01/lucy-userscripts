@@ -1,14 +1,48 @@
 (function () {
   "use strict";
 
+  const SCRIPT_VERSION = "0.2.7";
   const LUCY_BASE_URL = "https://lucystar.kr";
   const TOKEN_KEY = "lucy_tampermonkey_token";
   const PANEL_ID = "lucy-flow-connector-panel";
   const STYLE_MODAL_ID = "lucy-flow-style-modal";
   const STYLE_ID = "lucy-flow-connector-style";
   const STORAGE_PREFIX = "lucy_flow_connector_";
-  const INSTALLED_VERSION =
-    String(globalThis.__LUCY_FLOW_INSTALLED_VERSION__ || "").trim() || "unknown";
+
+  function resolveGrantedGMInfo() {
+    if (typeof GM_info !== "undefined" && GM_info) {
+      return GM_info;
+    }
+    return globalThis.GM_info || null;
+  }
+
+  function normalizeVersion(value) {
+    return String(value || "").trim().replace(/^v/i, "");
+  }
+
+  function resolveInstalledVersion() {
+    const gmInfo = resolveGrantedGMInfo();
+    const candidates = [
+      globalThis.__LUCY_FLOW_INSTALLED_VERSION__,
+      globalThis.__LUCY_FLOW_REMOTE_VERSION__,
+      globalThis.__LUCY_FLOW_LOADER_VERSION__,
+      gmInfo?.script?.version,
+      gmInfo?.version,
+      SCRIPT_VERSION,
+    ];
+
+    for (const candidate of candidates) {
+      const version = normalizeVersion(candidate);
+      if (version) {
+        return version;
+      }
+    }
+
+    return "unknown";
+  }
+
+  const INSTALLED_VERSION = resolveInstalledVersion();
+  globalThis.__LUCY_FLOW_INSTALLED_VERSION__ = INSTALLED_VERSION;
 
   function readLocalStorage(key, fallback = "") {
     try {
@@ -1587,6 +1621,7 @@
       globalThis.__LUCY_FLOW_TEST_HOOKS__({
         findCreateButton,
         clickCreateButton,
+        resolveInstalledVersion,
       });
     }
     return;

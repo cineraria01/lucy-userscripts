@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lucy Flow Auto Generator Loader
 // @namespace    https://lucystar.kr/
-// @version      0.2.6
+// @version      0.2.7
 // @description  Lucy Flow 자동 생성 스크립트 로더
 // @match        https://labs.google/fx/ko/tools/flow/project/*
 // @downloadURL  https://raw.githubusercontent.com/cineraria01/lucy-userscripts/main/lucy-flow-loader.user.js
@@ -19,9 +19,37 @@
 (function () {
   "use strict";
 
-  const LOADER_VERSION = "0.2.6";
+  const LOADER_VERSION = "0.2.7";
   const REMOTE_SCRIPT_URL =
     "https://raw.githubusercontent.com/cineraria01/lucy-userscripts/main/lucy-flow-auto-generator.js";
+
+  function normalizeVersion(value) {
+    const normalized = String(value || "").trim().replace(/^v/i, "");
+    return normalized;
+  }
+
+  function parseVersionFromSource(source) {
+    const text = String(source || "");
+    if (!text) {
+      return "";
+    }
+
+    const patterns = [
+      /@version\s+([0-9A-Za-z._-]+)/,
+      /const\s+SCRIPT_VERSION\s*=\s*["'`]([^"'`]+)["'`]/,
+      /version\s*:\s*["'`]([^"'`]+)["'`]/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      const version = normalizeVersion(match?.[1]);
+      if (version) {
+        return version;
+      }
+    }
+
+    return "";
+  }
 
   function resolveGrantedGMInfo() {
     if (typeof GM_info !== "undefined" && GM_info) {
@@ -32,10 +60,12 @@
 
   function getInstalledVersion() {
     const gmInfo = resolveGrantedGMInfo();
-    const runtimeVersion = gmInfo?.script?.version || gmInfo?.version;
-    return String(runtimeVersion || LOADER_VERSION).trim() || LOADER_VERSION;
+    const runtimeVersion = normalizeVersion(gmInfo?.script?.version || gmInfo?.version);
+    const existingVersion = normalizeVersion(globalThis.__LUCY_FLOW_INSTALLED_VERSION__);
+    return existingVersion || runtimeVersion || LOADER_VERSION;
   }
 
+  globalThis.__LUCY_FLOW_LOADER_VERSION__ = LOADER_VERSION;
   globalThis.__LUCY_FLOW_INSTALLED_VERSION__ = getInstalledVersion();
 
   function getRuntimeCacheBuster() {
@@ -71,6 +101,13 @@
     const version = encodeURIComponent(getRuntimeCacheBuster());
     const targetUrl = `${REMOTE_SCRIPT_URL}?v=${version}`;
     const source = await fetchRemoteScript(targetUrl);
+    const remoteVersion = parseVersionFromSource(source);
+    if (remoteVersion) {
+      globalThis.__LUCY_FLOW_REMOTE_VERSION__ = remoteVersion;
+      if (!normalizeVersion(globalThis.__LUCY_FLOW_INSTALLED_VERSION__)) {
+        globalThis.__LUCY_FLOW_INSTALLED_VERSION__ = remoteVersion;
+      }
+    }
     const runner = new Function(
       "GM_getValue",
       "GM_setValue",
